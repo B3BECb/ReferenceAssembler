@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang = "en">
+<head>
+	<meta charset = "UTF-8">
+	<title>Title</title>
+	<script src = "Registrator.js"></script>
+</head>
+<body>
+
+</body>
+<script>
+
+	async function aaa()
+	{
+		let response = await fetch('test/page1View.html');
+
+		let data = await response.text();
+
+		let tag = document.createElement('template');
+
+		tag.innerHTML = data;
+	}
+
+	let a = new Registrator();
+
+	a.RegisterView("test/page1View.html")
+	 .WithViewModel("test/page1ViewModel.js")
+	 .AsType(RegistrationTypes.Page)
+	 .RegisterView("test/page2View.html")
+	 .WithViewModel("test/page2ViewModel.js")
+	 .AsType(RegistrationTypes.Page)
+	 .RegisterView("test/page3View.html")
+	 .WithViewModel("test/page3ViewModel.js")
+	 .AsType(RegistrationTypes.Page)
+	 .RegisterView("test/page4View.html")
+	 .WithViewModel("test/page4ViewModel.js")
+	 .AsType(RegistrationTypes.Page)
+	 .Build();
+
+</script>
+</html>
