@@ -1,369 +1,374 @@
-class DependenciesLoader
-	implements IViewRegistrable,
-			   IViewModelRegistrable,
-			   IRegistrationTypeRegistrable,
-			   IRegistrationBuildable,
-			   IRegistrationApplicable
+namespace Framework
 {
-	public _registrations: Registration[];
-
-	public _asyncRegistrations: Registration[];
-
-	public _loadedRegistrations: Registration[];
-
-	public _registrationBuffer: Registration[];
-
-	private _loadingStarted: boolean;
-
-	constructor()
+	export class DependenciesLoader
+		implements IDependenceRegistrable,
+				   IViewModelRegistrable,
+				   IDependenceTypeRegistrable,
+				   IRegistrationResolvable,
+				   IRegistrationApplicable
 	{
-		this._registrations       = [];
-		this._asyncRegistrations  = [];
-		this._loadedRegistrations = [];
-		this._registrationBuffer  = [];
-	}
+		public _registrations: Registration[];
 
-	public RegisterScript(url: string): IRegistrationApplicable
-	{
-		let registration = new Registration();
+		public _asyncRegistrations: Registration[];
 
-		registration.ScriptUrl = url;
-		registration.Type      = RegistrationTypes.Script;
+		public _loadedRegistrations: Registration[];
 
-		this._registrationBuffer.unshift(registration);
+		public _registrationBuffer: Registration[];
 
-		return this;
-	}
+		private _loadingStarted: boolean;
 
-	public RegisterHtml(url: string): IViewModelRegistrable
-	{
-		let registration = new Registration();
+		constructor()
+		{
+			this._registrations       = [];
+			this._asyncRegistrations  = [];
+			this._loadedRegistrations = [];
+			this._registrationBuffer  = [];
+		}
 
-		registration.HtmlContentUrl = url;
+		public RegisterScript(url: string): IRegistrationApplicable
+		{
+			let registration = new Registration();
 
-		this._registrationBuffer.unshift(registration);
+			registration.ScriptUrl = url;
+			registration.Type      = RegistrationTypes.Script;
 
-		return this;
-	}
+			this._registrationBuffer.unshift(registration);
 
-	public WithScript(url: string): IRegistrationTypeRegistrable
-	{
-		let last = this._registrationBuffer[0];
+			return this;
+		}
 
-		last.ScriptUrl = url;
+		public RegisterHtml(url: string): IViewModelRegistrable
+		{
+			let registration = new Registration();
 
-		return this;
-	}
+			registration.HtmlContentUrl = url;
 
-	public WithName(name: string): IRegistrationTypeRegistrable
-	{
-		let last = this._registrationBuffer[0];
+			this._registrationBuffer.unshift(registration);
 
-		last.Name = name;
+			return this;
+		}
 
-		return this;
-	}
+		public WithScript(url: string): IDependenceTypeRegistrable
+		{
+			let last = this._registrationBuffer[0];
 
-	public AsType(type: RegistrationTypes): IRegistrationApplicable
-	{
-		let last = this._registrationBuffer[0];
+			last.ScriptUrl = url;
 
-		last.Type = type;
+			return this;
+		}
 
-		return this;
-	}
+		public WithName(name: string): IDependenceTypeRegistrable
+		{
+			let last = this._registrationBuffer[0];
 
-	public ApplyRegistrations(isAsyncLoading: boolean = false): IRegistrationBuildable
-	{
-		this._registrationBuffer.forEach(
-			x =>
-			{
-				x.IsAsyncLoad = isAsyncLoading;
+			last.Name = name;
 
-				if(!this.IsCanBeLoaded(x.ScriptUrl, x.IsAsyncLoad))
+			return this;
+		}
+
+		public AsType(type: RegistrationTypes): IRegistrationApplicable
+		{
+			let last = this._registrationBuffer[0];
+
+			last.Type = type;
+
+			return this;
+		}
+
+		public ApplyRegistrations(isAsyncLoading: boolean = false): IRegistrationResolvable
+		{
+			this._registrationBuffer.forEach(
+				x =>
 				{
-					x.IsSkiped = true;
-					console.warn('script: ' + x.ScriptUrl + ' already in loading or is loaded. script will be skip');
+					x.IsAsyncLoad = isAsyncLoading;
+
+					if(!this.IsCanBeLoaded(x.ScriptUrl, x.IsAsyncLoad))
+					{
+						x.IsSkiped = true;
+						console.warn(
+							'script: ' + x.ScriptUrl + ' already in loading or is loaded. script will be skip');
+					}
+				});
+			let reversed = this._registrationBuffer.reverse();
+
+			if(isAsyncLoading)
+			{
+				this._asyncRegistrations = reversed.concat(this._asyncRegistrations);
+			}
+			else
+			{
+				this._registrations = reversed.concat(this._registrations);
+			}
+
+			this._registrationBuffer = [];
+
+			return this;
+		}
+
+		public async Resolve()
+		{
+			this._loadingStarted = true;
+
+			while(this._registrations.length || this._asyncRegistrations.length)
+			{
+				if(this._asyncRegistrations.length)
+				{
+					await this.LoadAsyncRegistrations();
 				}
-			});
-		let reversed = this._registrationBuffer.reverse();
 
-		if(isAsyncLoading)
-		{
-			this._asyncRegistrations = reversed.concat(this._asyncRegistrations);
-		}
-		else
-		{
-			this._registrations = reversed.concat(this._registrations);
-		}
-
-		this._registrationBuffer = [];
-
-		return this;
-	}
-
-	public async Resolve()
-	{
-		this._loadingStarted = true;
-
-		while(this._registrations.length || this._asyncRegistrations.length)
-		{
-			if(this._asyncRegistrations.length)
-			{
-				await this.LoadAsyncRegistrations();
+				if(this._registrations.length)
+				{
+					await this.LoadRegistrations();
+				}
 			}
 
-			if(this._registrations.length)
-			{
-				await this.LoadRegistrations();
-			}
+			this._loadingStarted = false;
+
+			return true;
 		}
 
-		this._loadingStarted = false;
+		private async LoadAsyncRegistrations()
+		{
+			let tasks = this._asyncRegistrations.map(
+				async(registration, id) =>
+				{
+					if(registration.IsSkiped || registration.IsLoaded)
+					{
+						this._asyncRegistrations.shift();
+						return;
+					}
 
-		return true;
-	}
+					if(!registration.Type == null)
+					{
+						console.error("Unable to load registration. ViewModelUrl or Type is empty.");
+						return false;
+					}
 
-	private async LoadAsyncRegistrations()
-	{
-		let tasks = this._asyncRegistrations.map(
-			async(registration, id) =>
+					let isLoaded = await this.TryLoad(registration, "async_" + id);
+
+					registration.IsLoaded = isLoaded;
+
+					this._loadedRegistrations.push(registration);
+					this._asyncRegistrations.shift();
+				},
+			);
+
+			await Promise.all(tasks);
+		}
+
+		private async LoadRegistrations()
+		{
+			let id = 0;
+			while(this._registrations.length)
 			{
+				let registration = this._registrations.shift();
+
 				if(registration.IsSkiped || registration.IsLoaded)
 				{
 					this._asyncRegistrations.shift();
 					return;
 				}
 
-				if(!registration.Type == null)
-				{
-					console.error("Unable to load registration. ViewModelUrl or Type is empty.");
-					return false;
-				}
-
-				let isLoaded = await this.TryLoad(registration, "async_" + id);
+				let isLoaded = await this.TryLoad(registration, "sync_" + id);
 
 				registration.IsLoaded = isLoaded;
 
 				this._loadedRegistrations.push(registration);
-				this._asyncRegistrations.shift();
-			},
-		);
 
-		await Promise.all(tasks);
-	}
-
-	private async LoadRegistrations()
-	{
-		let id = 0;
-		while(this._registrations.length)
-		{
-			let registration = this._registrations.shift();
-
-			if(registration.IsSkiped || registration.IsLoaded)
-			{
-				this._asyncRegistrations.shift();
-				return;
+				id++;
 			}
-
-			let isLoaded = await this.TryLoad(registration, "sync_" + id);
-
-			registration.IsLoaded = isLoaded;
-
-			this._loadedRegistrations.push(registration);
-
-			id++;
-		}
-	}
-
-	private async TryLoad(registration: Registration, id: string): Promise<boolean>
-	{
-		if(!registration.Type == null)
-		{
-			console.error("Unable to load registration. ViewModelUrl or Type is empty.");
-			return false;
 		}
 
-		let loadingResult: boolean;
-
-		if(registration.HtmlContentUrl)
+		private async TryLoad(registration: Registration, id: string): Promise<boolean>
 		{
-			loadingResult = await this.TryLoadHtml(registration);
-
-			if(!loadingResult)
+			if(!registration.Type == null)
 			{
+				console.error("Unable to load registration. ViewModelUrl or Type is empty.");
 				return false;
 			}
-		}
 
-		if(registration.ScriptUrl)
-		{
-			loadingResult = await this.TryLoadScript(registration, id);
+			let loadingResult: boolean;
 
-			if(!loadingResult)
+			if(registration.HtmlContentUrl)
 			{
-				return false;
+				loadingResult = await this.TryLoadHtml(registration);
+
+				if(!loadingResult)
+				{
+					return false;
+				}
 			}
-		}
 
-		return true;
-	}
+			if(registration.ScriptUrl)
+			{
+				loadingResult = await this.TryLoadScript(registration, id);
 
-	private async TryLoadHtml(registration: Registration): Promise<boolean>
-	{
-		let response: Response;
-
-		try
-		{
-			response = await fetch(registration.HtmlContentUrl);
-		}
-		catch(exc)
-		{
-			console.error(exc);
-			return false;
-		}
-
-		if(response.status >= 200 && response.status <= 300)
-		{
-			let data = await response.text();
-
-			let tag = document.createElement('template');
-
-			tag.innerHTML = data;
-
-			registration.ViewContent = tag.content;
+				if(!loadingResult)
+				{
+					return false;
+				}
+			}
 
 			return true;
 		}
 
-		console.error("Unable to load view. Response status is: " + response.status);
-		return false;
-	}
-
-	private async TryLoadScript(registration: Registration, id: string): Promise<boolean>
-	{
-		let element  = document.createElement('script');
-		element.type = 'text/javascript';
-		element.src  = registration.ScriptUrl;
-
-		let prefix = "ViewModel_";
-
-		if(RegistrationTypes.Script)
+		private async TryLoadHtml(registration: Registration): Promise<boolean>
 		{
-			prefix = "Script_";
-		}
+			let response: Response;
 
-		element.id = prefix + id;
-
-		let loadingPromise = new Promise((resolve, reject) =>
-		{
-			element.onload = (args) =>
+			try
 			{
-				resolve();
-			};
-
-			element.onerror = (args) =>
+				response = await fetch(registration.HtmlContentUrl);
+			}
+			catch(exc)
 			{
-				reject(new Error(args.message));
-			};
-		});
+				console.error(exc);
+				return false;
+			}
 
-		document.querySelector('head')
-				.appendChild(element);
+			if(response.status >= 200 && response.status <= 300)
+			{
+				let data = await response.text();
 
-		try
-		{
-			await loadingPromise;
-			return true;
-		}
-		catch(exc)
-		{
-			console.error("Unable to load viewModel. Reason is: " + exc);
+				let tag = document.createElement('template');
+
+				tag.innerHTML = data;
+
+				registration.ViewContent = tag.content;
+
+				return true;
+			}
+
+			console.error("Unable to load view. Response status is: " + response.status);
 			return false;
 		}
-	}
 
-	private IsCanBeLoaded(url: string, isAsync: boolean): boolean
-	{
-		let index = this._registrations.findIndex(x => x.ScriptUrl == url);
+		private async TryLoadScript(registration: Registration, id: string): Promise<boolean>
+		{
+			let element  = document.createElement('script');
+			element.type = 'text/javascript';
+			element.src  = registration.ScriptUrl;
 
-		if(index >= 0)
-		{
-			this._registrations.splice(index, 1);
-		}
-		else
-		{
-			if(isAsync)
+			let prefix = "ViewModel_";
+
+			if(RegistrationTypes.Script)
 			{
-				return !(this._asyncRegistrations.some(x => x.ScriptUrl == url)
-					|| this._loadedRegistrations.some(x => x.ScriptUrl == url));
+				prefix = "Script_";
+			}
+
+			element.id = prefix + id;
+
+			let loadingPromise = new Promise((resolve, reject) =>
+			{
+				element.onload = (args) =>
+				{
+					resolve();
+				};
+
+				element.onerror = (args) =>
+				{
+					reject(new Error(args.message));
+				};
+			});
+
+			document.querySelector('head')
+					.appendChild(element);
+
+			try
+			{
+				await loadingPromise;
+				return true;
+			}
+			catch(exc)
+			{
+				console.error("Unable to load viewModel. Reason is: " + exc);
+				return false;
+			}
+		}
+
+		private IsCanBeLoaded(url: string, isAsync: boolean): boolean
+		{
+			let index = this._registrations.findIndex(x => x.ScriptUrl == url);
+
+			if(index >= 0)
+			{
+				this._registrations.splice(index, 1);
 			}
 			else
 			{
-				index = this._asyncRegistrations.findIndex(x => x.ScriptUrl == url);
-
-				if(index >= 0)
+				if(isAsync)
 				{
-					this._asyncRegistrations.splice(index, 1);
+					return !(this._asyncRegistrations.some(x => x.ScriptUrl == url)
+						|| this._loadedRegistrations.some(x => x.ScriptUrl == url));
+				}
+				else
+				{
+					index = this._asyncRegistrations.findIndex(x => x.ScriptUrl == url);
+
+					if(index >= 0)
+					{
+						this._asyncRegistrations.splice(index, 1);
+					}
 				}
 			}
+
+			return !this._loadedRegistrations.some(x => x.ScriptUrl == url);
 		}
-
-		return !this._loadedRegistrations.some(x => x.ScriptUrl == url);
 	}
-}
 
-interface IViewRegistrable
-{
-	RegisterHtml(url: string): IViewModelRegistrable;
-
-	RegisterScript(url: string): IRegistrationApplicable;
-}
-
-interface IRegistrationBuildable
-	extends IViewRegistrable
-{
-	Resolve(): Promise<boolean>;
-}
-
-interface IRegistrationApplicable
-	extends IViewRegistrable
-{
-	ApplyRegistrations(isAsyncLoading: boolean): IRegistrationBuildable;
-}
-
-interface IViewModelRegistrable
-{
-	WithScript(url: string): IRegistrationTypeRegistrable;
-
-	WithName(name: string): IRegistrationTypeRegistrable;
-}
-
-interface IRegistrationTypeRegistrable
-{
-	AsType(type: RegistrationTypes): IRegistrationApplicable;
-}
-
-class Registration
-{
-	public HtmlContentUrl: string;
-	public ScriptUrl: string;
-	public Name: string;
-	public Type: RegistrationTypes;
-	public IsLoaded: boolean;
-	public IsSkiped: boolean;
-	public IsAsyncLoad ?: boolean;
-
-	public ViewContent: DocumentFragment;
-
-	constructor()
+	export interface IDependenceRegistrable
 	{
+		RegisterHtml(url: string): IViewModelRegistrable;
+
+		RegisterScript(url: string): IRegistrationApplicable;
+	}
+
+	export interface IRegistrationResolvable
+		extends IDependenceRegistrable
+	{
+		Resolve(): Promise<boolean>;
+	}
+
+	export interface IRegistrationApplicable
+		extends IDependenceRegistrable
+	{
+		ApplyRegistrations(isAsyncLoading: boolean): IRegistrationResolvable;
+	}
+
+	export interface IViewModelRegistrable
+	{
+		WithScript(url: string): IDependenceTypeRegistrable;
+
+		WithName(name: string): IDependenceTypeRegistrable;
+	}
+
+	export interface IDependenceTypeRegistrable
+	{
+		AsType(type: RegistrationTypes): IRegistrationApplicable;
+	}
+
+	class Registration
+	{
+		public HtmlContentUrl: string;
+		public ScriptUrl: string;
+		public Name: string;
+		public Type: RegistrationTypes;
+		public IsLoaded: boolean;
+		public IsSkiped: boolean;
+		public IsAsyncLoad ?: boolean;
+
+		public ViewContent: DocumentFragment;
+
+		constructor()
+		{
+		}
+	}
+
+	export enum RegistrationTypes
+	{
+		Page,
+		Window,
+		Script,
 	}
 }
 
-enum RegistrationTypes
-{
-	Page,
-	Window,
-	Script,
-}
