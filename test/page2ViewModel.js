@@ -1,7 +1,7 @@
-a.RegisterView("test/page21View.html")
- .WithViewModel("test/page21ViewModel.js")
+a.RegisterHtml("test/page21View.html")
+ .WithScript("test/page21ViewModel.js")
  .AsType(RegistrationTypes.Page)
- .RegisterView("test/page22View.html")
- .WithViewModel("test/page22ViewModel.js")
+ .RegisterHtml("test/page22View.html")
+ .WithScript("test/page22ViewModel.js")
  .AsType(RegistrationTypes.Page)
- .ApplySequence();
+ .ApplyRegistrations();

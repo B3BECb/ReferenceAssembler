@@ -1,4 +1,4 @@
-class Registrator
+class DependenciesLoader
 	implements IViewRegistrable,
 			   IViewModelRegistrable,
 			   IRegistrationTypeRegistrable,
@@ -28,14 +28,14 @@ class Registrator
 		let registration = new Registration();
 
 		registration.ScriptUrl = url;
-		registration.Type = RegistrationTypes.Script;
+		registration.Type      = RegistrationTypes.Script;
 
 		this._registrationBuffer.unshift(registration);
 
 		return this;
 	}
 
-	public RegisterView(url: string): IViewModelRegistrable
+	public RegisterHtml(url: string): IViewModelRegistrable
 	{
 		let registration = new Registration();
 
@@ -46,11 +46,20 @@ class Registrator
 		return this;
 	}
 
-	public WithViewModel(url: string): IRegistrationTypeRegistrable
+	public WithScript(url: string): IRegistrationTypeRegistrable
 	{
 		let last = this._registrationBuffer[0];
 
 		last.ScriptUrl = url;
+
+		return this;
+	}
+
+	public WithName(name: string): IRegistrationTypeRegistrable
+	{
+		let last = this._registrationBuffer[0];
+
+		last.Name = name;
 
 		return this;
 	}
@@ -64,7 +73,7 @@ class Registrator
 		return this;
 	}
 
-	public ApplySequence(isAsyncLoading: boolean = false): IRegistrationBuildable
+	public ApplyRegistrations(isAsyncLoading: boolean = false): IRegistrationBuildable
 	{
 		this._registrationBuffer.forEach(
 			x =>
@@ -93,7 +102,7 @@ class Registrator
 		return this;
 	}
 
-	public async Build()
+	public async Resolve()
 	{
 		this._loadingStarted = true;
 
@@ -109,6 +118,8 @@ class Registrator
 				await this.LoadRegistrations();
 			}
 		}
+
+		this._loadingStarted = false;
 
 		return true;
 	}
@@ -165,7 +176,7 @@ class Registrator
 		}
 	}
 
-	private async TryLoad(registration:Registration, id:string) : Promise<boolean>
+	private async TryLoad(registration: Registration, id: string): Promise<boolean>
 	{
 		if(!registration.Type == null)
 		{
@@ -272,7 +283,7 @@ class Registrator
 		}
 	}
 
-	private IsCanBeLoaded(url: string, isAsync: boolean) : boolean
+	private IsCanBeLoaded(url: string, isAsync: boolean): boolean
 	{
 		let index = this._registrations.findIndex(x => x.ScriptUrl == url);
 
@@ -304,25 +315,28 @@ class Registrator
 
 interface IViewRegistrable
 {
-	RegisterView(url: string): IViewModelRegistrable;
+	RegisterHtml(url: string): IViewModelRegistrable;
+
 	RegisterScript(url: string): IRegistrationApplicable;
 }
 
 interface IRegistrationBuildable
 	extends IViewRegistrable
 {
-	Build(): Promise<boolean>;
+	Resolve(): Promise<boolean>;
 }
 
 interface IRegistrationApplicable
 	extends IViewRegistrable
 {
-	ApplySequence(isAsyncLoading: boolean): IRegistrationBuildable;
+	ApplyRegistrations(isAsyncLoading: boolean): IRegistrationBuildable;
 }
 
 interface IViewModelRegistrable
 {
-	WithViewModel(url: string): IRegistrationTypeRegistrable;
+	WithScript(url: string): IRegistrationTypeRegistrable;
+
+	WithName(name: string): IRegistrationTypeRegistrable;
 }
 
 interface IRegistrationTypeRegistrable
@@ -334,6 +348,7 @@ class Registration
 {
 	public HtmlContentUrl: string;
 	public ScriptUrl: string;
+	public Name: string;
 	public Type: RegistrationTypes;
 	public IsLoaded: boolean;
 	public IsSkiped: boolean;

@@ -3,7 +3,7 @@
 <head>
 	<meta charset = "UTF-8">
 	<title>Title</title>
-	<script src = "Registrator.js"></script>
+	<script src = "DependenciesLoader.js"></script>
 </head>
 <body>
 
@@ -21,26 +21,36 @@
 		tag.innerHTML = data;
 	}
 
-	let a = new Registrator();
+	async function ccc()
+	{
+		a.RegisterHtml("test/page4View.html")
+		 .WithScript("test/page4ViewModel.js")
+		 .WithName("Name1")
+		 .AsType(RegistrationTypes.Page)
+		 .ApplyRegistrations();
 
-	a.RegisterView("test/page1View.html")
-	 .WithViewModel("test/page1ViewModel.js")
+		a.RegisterScript("coreTest/functions7.js")
+		 .ApplyRegistrations(true);
+
+		a.Resolve();
+	}
+
+	let a = new DependenciesLoader();
+
+	a.RegisterHtml("test/page1View.html")
+	 .WithScript("test/page1ViewModel.js")
 	 .AsType(RegistrationTypes.Page)
-	 .RegisterView("test/page2View.html")
-	 .WithViewModel("test/page2ViewModel.js")
+	 .RegisterHtml("test/page2View.html")
+	 .WithScript("test/page2ViewModel.js")
 	 .AsType(RegistrationTypes.Page)
-	 .RegisterView("test/page4View.html")
-	 .WithViewModel("test/page4ViewModel.js")
+	 .ApplyRegistrations(false);
+
+	a.RegisterHtml("test/page3View.html")
+	 .WithScript("test/page3ViewModel.js")
 	 .AsType(RegistrationTypes.Page)
-	 .ApplySequence(false);
+	 .ApplyRegistrations(true);
 
-
-	a.RegisterView("test/page3View.html")
-		.WithViewModel("test/page3ViewModel.js")
-		.AsType(RegistrationTypes.Page)
-	 .ApplySequence(true);
-
-	a.Build();
+	a.Resolve();
 
 </script>
 </html>
