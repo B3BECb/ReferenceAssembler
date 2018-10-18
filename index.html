@@ -29,14 +29,18 @@
 	 .RegisterView("test/page2View.html")
 	 .WithViewModel("test/page2ViewModel.js")
 	 .AsType(RegistrationTypes.Page)
-	 .RegisterView("test/page3View.html")
-	 .WithViewModel("test/page3ViewModel.js")
-	 .AsType(RegistrationTypes.Page)
 	 .RegisterView("test/page4View.html")
 	 .WithViewModel("test/page4ViewModel.js")
 	 .AsType(RegistrationTypes.Page)
-	 .ApplySequence()
-	 .Build();
+	 .ApplySequence(false);
+
+
+	a.RegisterView("test/page3View.html")
+		.WithViewModel("test/page3ViewModel.js")
+		.AsType(RegistrationTypes.Page)
+	 .ApplySequence(true);
+
+	a.Build();
 
 </script>
 </html>

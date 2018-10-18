@@ -7,6 +7,8 @@ class Registrator
 {
 	public _registrations: Registration[];
 
+	public _asyncRegistrations: Registration[];
+
 	public _loadedRegistrations: Registration[];
 
 	public _registrationBuffer: Registration[];
@@ -18,13 +20,28 @@ class Registrator
 	constructor()
 	{
 		this._registrations       = [];
+		this._asyncRegistrations  = [];
 		this._loadedRegistrations = [];
 		this._registrationBuffer  = [];
 	}
 
+	public RegisterScript(url: string): IRegistrationApplicable
+	{
+		let registration = new Registration();
+
+		registration.ScriptUrl = url;
+		registration.Type = RegistrationTypes.Script;
+
+		this._registrationBuffer.unshift(registration);
+
+		return this;
+	}
+
 	public RegisterView(url: string): IViewModelRegistrable
 	{
-		let registration = new Registration(url);
+		let registration = new Registration();
+
+		registration.HtmlContentUrl = url;
 
 		this._registrationBuffer.unshift(registration);
 
@@ -35,7 +52,7 @@ class Registrator
 	{
 		let last = this._registrationBuffer[0];
 
-		last.ViewModelUrl = url;
+		last.ScriptUrl = url;
 
 		return this;
 	}
@@ -49,10 +66,19 @@ class Registrator
 		return this;
 	}
 
-	public ApplySequence(): IRegistrationBuildable
+	public ApplySequence(isAsyncLoading: boolean = false): IRegistrationBuildable
 	{
-		let reversed        = this._registrationBuffer.reverse();
-		this._registrations = reversed.concat(this._registrations);
+		this._registrationBuffer.forEach(x => x.IsAsyncLoad = isAsyncLoading);
+		let reversed = this._registrationBuffer.reverse();
+
+		if(isAsyncLoading)
+		{
+			this._asyncRegistrations = reversed.concat(this._asyncRegistrations);
+		}
+		else
+		{
+			this._registrations = reversed.concat(this._registrations);
+		}
 
 		this._registrationBuffer = [];
 
@@ -63,68 +89,93 @@ class Registrator
 	{
 		this._loadingStarted = true;
 
+		while(this._registrations.length || this._asyncRegistrations.length)
+		{
+			if(this._asyncRegistrations.length)
+			{
+				await this.LoadAsyncRegistrations();
+			}
+
+			if(this._registrations.length)
+			{
+				await this.LoadRegistrations();
+			}
+		}
+
+		return true;
+	}
+
+	private async LoadAsyncRegistrations()
+	{
+		let tasks = this._asyncRegistrations.map(
+			async(registration, id) =>
+			{
+				if(!registration.Type == null)
+				{
+					console.error("Unable to load registration. ViewModelUrl or Type is empty.");
+					return false;
+				}
+
+				let isLoaded = await this.TryLoad(registration, "async_" + id);
+
+				registration.IsLoaded = isLoaded;
+
+				this._loadedRegistrations.push(registration);
+				this._asyncRegistrations.shift();
+			},
+		);
+
+		await Promise.all(tasks);
+	}
+
+	private async LoadRegistrations()
+	{
 		let id = 0;
 		while(this._registrations.length)
 		{
 			let registration = this._registrations.shift();
 
-			if(!registration.ViewModelUrl || !registration.Type == null)
-			{
-				console.error("Unable to load registration. ViewModelUrl or Type is empty.");
-				return false;
-			}
+			let isLoaded = await this.TryLoad(registration, "sync_" + id);
 
-			let loadingResult = await this.TryLoadView(registration);
+			registration.IsLoaded = isLoaded;
+
+			this._loadedRegistrations.push(registration);
+
+			id++;
+		}
+	}
+
+	private async TryLoad(registration:Registration, id:string) : Promise<boolean>
+	{
+		if(!registration.Type == null)
+		{
+			console.error("Unable to load registration. ViewModelUrl or Type is empty.");
+			return false;
+		}
+
+		let loadingResult: boolean;
+
+		if(registration.HtmlContentUrl)
+		{
+			loadingResult = await this.TryLoadView(registration);
 
 			if(!loadingResult)
 			{
 				return false;
 			}
+		}
 
+		if(registration.ScriptUrl)
+		{
 			loadingResult = await this.TryLoadViewModel(registration, id);
 
 			if(!loadingResult)
 			{
 				return false;
 			}
-
-			registration.IsLoaded = true;
-
-			this._loadedRegistrations.push(registration);
-
-			id++;
 		}
 
 		return true;
-
-		/*let tasks = this.Registrations.map(
-		 async(registration, id) =>
-		 {
-		 if(!registration.ViewModelUrl || !registration.Type == null)
-		 {
-		 console.error("Unable to load registration. ViewModelUrl or Type is empty.");
-		 return false;
-		 }
-
-		 let loadingResult = await this.TryLoadView(registration);
-
-		 if(!loadingResult)
-		 {
-		 return false;
-		 }
-
-		 loadingResult = await this.TryLoadViewModel(registration, id);
-
-		 if(!loadingResult)
-		 {
-		 return false;
-		 }
-
-		 registration.IsLoaded = true;
-		 },
-		 );*/
-
-		//await Promise.all(tasks);
 	}
 
 	private async TryLoadView(registration: Registration): Promise<boolean>
@@ -133,7 +184,7 @@ class Registrator
 
 		try
 		{
-			response = await fetch(registration.ViewUrl);
+			response = await fetch(registration.HtmlContentUrl);
 		}
 		catch(exc)
 		{
@@ -158,13 +209,20 @@ class Registrator
 		return false;
 	}
 
-	private async TryLoadViewModel(registration: Registration, id: number): Promise<boolean>
+	private async TryLoadViewModel(registration: Registration, id: string): Promise<boolean>
 	{
 		let element  = document.createElement('script');
 		element.type = 'text/javascript';
-		element.src  = registration.ViewModelUrl;
+		element.src  = registration.ScriptUrl;
 
-		element.id = "ViewModel_" + id;
+		let prefix = "ViewModel_";
+
+		if(RegistrationTypes.Script)
+		{
+			prefix = "Script_";
+		}
+
+		element.id = prefix + id;
 
 		let loadingPromise = new Promise((resolve, reject) =>
 		{
@@ -193,23 +251,12 @@ class Registrator
 			return false;
 		}
 	}
-
-	private GetLastRegistration(): Registration
-	{
-		return this._registrations.slice(-1)[0];
-	}
-
-	private GetFirstUnloadedRegIndex(): number
-	{
-		let firstUnloadedRegIndex = this._registrations.findIndex(x => !x.IsLoaded) + 1;
-
-		return firstUnloadedRegIndex;
-	}
 }
 
 interface IViewRegistrable
 {
 	RegisterView(url: string): IViewModelRegistrable;
+	RegisterScript(url: string): IRegistrationApplicable;
 }
 
 interface IRegistrationBuildable
@@ -221,7 +268,7 @@ interface IRegistrationBuildable
 interface IRegistrationApplicable
 	extends IViewRegistrable
 {
-	ApplySequence(): IRegistrationBuildable;
+	ApplySequence(isAsyncLoading: boolean): IRegistrationBuildable;
 }
 
 interface IViewModelRegistrable
@@ -236,17 +283,16 @@ interface IRegistrationTypeRegistrable
 
 class Registration
 {
-	public ViewUrl: string;
-	public ViewModelUrl: string;
+	public HtmlContentUrl: string;
+	public ScriptUrl: string;
 	public Type: RegistrationTypes;
 	public IsLoaded: boolean;
 	public IsAsyncLoad ?: boolean;
 
 	public ViewContent: DocumentFragment;
 
-	constructor(url: string)
+	constructor()
 	{
-		this.ViewUrl = url;
 	}
 }
 
@@ -254,4 +300,5 @@ enum RegistrationTypes
 {
 	Page,
 	Window,
+	Script,
 }
