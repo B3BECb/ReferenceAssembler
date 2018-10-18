@@ -1,9 +1,15 @@
 class Registrator
 	implements IViewRegistrable,
 			   IViewModelRegistrable,
-			   IRegistrationTypeRegistrable
+			   IRegistrationTypeRegistrable,
+			   IRegistrationBuildable,
+			   IRegistrationApplicable
 {
-	public Registrations: Registration[];
+	public _registrations: Registration[];
+
+	public _loadedRegistrations: Registration[];
+
+	public _registrationBuffer: Registration[];
 
 	private _loadingStarted: boolean;
 
@@ -11,58 +17,44 @@ class Registrator
 
 	constructor()
 	{
-		this.Registrations = [];
+		this._registrations       = [];
+		this._loadedRegistrations = [];
+		this._registrationBuffer  = [];
 	}
 
 	public RegisterView(url: string): IViewModelRegistrable
 	{
 		let registration = new Registration(url);
-		if(!this._loadingStarted)
-		{
-			this.Registrations.push(registration);
-		}
-		else
-		{
-			let firstUnloadedRegIndex = this.GetFirstUnloadedRegIndex();
 
-			this.Registrations.splice(firstUnloadedRegIndex, 0, registration);
-		}
+		this._registrationBuffer.unshift(registration);
 
 		return this;
 	}
 
 	public WithViewModel(url: string): IRegistrationTypeRegistrable
 	{
-		let last : Registration;
-
-		if(!this._loadingStarted)
-		{
-			last = this.GetLastRegistration();
-		}
-		else
-		{
-			last = this.Registrations[this.GetFirstUnloadedRegIndex()];
-		}
+		let last = this._registrationBuffer[0];
 
 		last.ViewModelUrl = url;
 
 		return this;
 	}
 
-	public AsType(type: RegistrationTypes): IViewRegistrable
+	public AsType(type: RegistrationTypes): IRegistrationApplicable
 	{
-		let last : Registration;
-
-		if(!this._loadingStarted)
-		{
-			last  = this.GetLastRegistration();
-		}
-		else
-		{
-			last = this.Registrations[this.GetFirstUnloadedRegIndex()];
-		}
+		let last = this._registrationBuffer[0];
 
 		last.Type = type;
+
+		return this;
+	}
+
+	public ApplySequence(): IRegistrationBuildable
+	{
+		let reversed        = this._registrationBuffer.reverse();
+		this._registrations = reversed.concat(this._registrations);
+
+		this._registrationBuffer = [];
 
 		return this;
 	}
@@ -71,9 +63,10 @@ class Registrator
 	{
 		this._loadingStarted = true;
 
-		for(let id = 0; id < this.Registrations.length; id++)
+		let id = 0;
+		while(this._registrations.length)
 		{
-			let registration = this.Registrations[id];
+			let registration = this._registrations.shift();
 
 			if(!registration.ViewModelUrl || !registration.Type == null)
 			{
@@ -96,36 +89,40 @@ class Registrator
 			}
 
 			registration.IsLoaded = true;
+
+			this._loadedRegistrations.push(registration);
+
+			id++;
 		}
 
 		return true;
 
 		/*let tasks = this.Registrations.map(
-			async(registration, id) =>
-			{
-				if(!registration.ViewModelUrl || !registration.Type == null)
-				{
-					console.error("Unable to load registration. ViewModelUrl or Type is empty.");
-					return false;
-				}
+		 async(registration, id) =>
+		 {
+		 if(!registration.ViewModelUrl || !registration.Type == null)
+		 {
+		 console.error("Unable to load registration. ViewModelUrl or Type is empty.");
+		 return false;
+		 }
 
-				let loadingResult = await this.TryLoadView(registration);
+		 let loadingResult = await this.TryLoadView(registration);
 
-				if(!loadingResult)
-				{
-					return false;
-				}
+		 if(!loadingResult)
+		 {
+		 return false;
+		 }
 
-				loadingResult = await this.TryLoadViewModel(registration, id);
+		 loadingResult = await this.TryLoadViewModel(registration, id);
 
-				if(!loadingResult)
-				{
-					return false;
-				}
+		 if(!loadingResult)
+		 {
+		 return false;
+		 }
 
-				registration.IsLoaded = true;
-			},
-		);*/
+		 registration.IsLoaded = true;
+		 },
+		 );*/
 
 		//await Promise.all(tasks);
 	}
@@ -183,7 +180,7 @@ class Registrator
 		});
 
 		document.querySelector('head')
-			.appendChild(element);
+				.appendChild(element);
 
 		try
 		{
@@ -199,12 +196,12 @@ class Registrator
 
 	private GetLastRegistration(): Registration
 	{
-		return this.Registrations.slice(-1)[0];
+		return this._registrations.slice(-1)[0];
 	}
 
-	private GetFirstUnloadedRegIndex() : number
+	private GetFirstUnloadedRegIndex(): number
 	{
-		let firstUnloadedRegIndex = this.Registrations.findIndex(x => !x.IsLoaded) + 1;
+		let firstUnloadedRegIndex = this._registrations.findIndex(x => !x.IsLoaded) + 1;
 
 		return firstUnloadedRegIndex;
 	}
@@ -213,7 +210,18 @@ class Registrator
 interface IViewRegistrable
 {
 	RegisterView(url: string): IViewModelRegistrable;
-	Build() : Promise<boolean>;
+}
+
+interface IRegistrationBuildable
+	extends IViewRegistrable
+{
+	Build(): Promise<boolean>;
+}
+
+interface IRegistrationApplicable
+	extends IViewRegistrable
+{
+	ApplySequence(): IRegistrationBuildable;
 }
 
 interface IViewModelRegistrable
@@ -223,7 +231,7 @@ interface IViewModelRegistrable
 
 interface IRegistrationTypeRegistrable
 {
-	AsType(type: RegistrationTypes): IViewRegistrable;
+	AsType(type: RegistrationTypes): IRegistrationApplicable;
 }
 
 class Registration
@@ -231,7 +239,8 @@ class Registration
 	public ViewUrl: string;
 	public ViewModelUrl: string;
 	public Type: RegistrationTypes;
-	public IsLoaded : boolean;
+	public IsLoaded: boolean;
+	public IsAsyncLoad ?: boolean;
 
 	public ViewContent: DocumentFragment;
 

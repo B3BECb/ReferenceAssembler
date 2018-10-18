@@ -3,4 +3,5 @@ a.RegisterView("test/page21View.html")
  .AsType(RegistrationTypes.Page)
  .RegisterView("test/page22View.html")
  .WithViewModel("test/page22ViewModel.js")
- .AsType(RegistrationTypes.Page);
+ .AsType(RegistrationTypes.Page)
+ .ApplySequence();
