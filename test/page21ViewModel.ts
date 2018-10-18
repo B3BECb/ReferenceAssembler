@@ -4,5 +4,7 @@ class Page21ViewModel
 	constructor(loader: Framework.IDependenceRegistrable)
 	{
 		super(loader);
+
+
 	}
 }

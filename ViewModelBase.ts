@@ -2,7 +2,7 @@ namespace Framework
 {
 	export class ViewModelBase implements IViewModel
 	{
-		private _loader : IDependenceRegistrable;
+		protected _loader : IDependenceRegistrable;
 
 		constructor(loader: IDependenceRegistrable)
 		{
