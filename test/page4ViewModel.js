@@ -6,3 +6,4 @@ a.RegisterScript("./coreTest/functions1.js")
 a.RegisterScript("./coreTest/functions4.js")
  .RegisterScript("./coreTest/functions5.js")
  .ApplySequence(false);
+

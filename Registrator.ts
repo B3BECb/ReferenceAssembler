@@ -15,8 +15,6 @@ class Registrator
 
 	private _loadingStarted: boolean;
 
-	private _lastLoadedRegistration: number;
-
 	constructor()
 	{
 		this._registrations       = [];
@@ -68,7 +66,17 @@ class Registrator
 
 	public ApplySequence(isAsyncLoading: boolean = false): IRegistrationBuildable
 	{
-		this._registrationBuffer.forEach(x => x.IsAsyncLoad = isAsyncLoading);
+		this._registrationBuffer.forEach(
+			x =>
+			{
+				x.IsAsyncLoad = isAsyncLoading;
+
+				if(!this.IsCanBeLoaded(x.ScriptUrl, x.IsAsyncLoad))
+				{
+					x.IsSkiped = true;
+					console.warn('script: ' + x.ScriptUrl + ' already in loading or is loaded. script will be skip');
+				}
+			});
 		let reversed = this._registrationBuffer.reverse();
 
 		if(isAsyncLoading)
@@ -110,6 +118,12 @@ class Registrator
 		let tasks = this._asyncRegistrations.map(
 			async(registration, id) =>
 			{
+				if(registration.IsSkiped || registration.IsLoaded)
+				{
+					this._asyncRegistrations.shift();
+					return;
+				}
+
 				if(!registration.Type == null)
 				{
 					console.error("Unable to load registration. ViewModelUrl or Type is empty.");
@@ -135,6 +149,12 @@ class Registrator
 		{
 			let registration = this._registrations.shift();
 
+			if(registration.IsSkiped || registration.IsLoaded)
+			{
+				this._asyncRegistrations.shift();
+				return;
+			}
+
 			let isLoaded = await this.TryLoad(registration, "sync_" + id);
 
 			registration.IsLoaded = isLoaded;
@@ -157,7 +177,7 @@ class Registrator
 
 		if(registration.HtmlContentUrl)
 		{
-			loadingResult = await this.TryLoadView(registration);
+			loadingResult = await this.TryLoadHtml(registration);
 
 			if(!loadingResult)
 			{
@@ -167,7 +187,7 @@ class Registrator
 
 		if(registration.ScriptUrl)
 		{
-			loadingResult = await this.TryLoadViewModel(registration, id);
+			loadingResult = await this.TryLoadScript(registration, id);
 
 			if(!loadingResult)
 			{
@@ -178,7 +198,7 @@ class Registrator
 		return true;
 	}
 
-	private async TryLoadView(registration: Registration): Promise<boolean>
+	private async TryLoadHtml(registration: Registration): Promise<boolean>
 	{
 		let response: Response;
 
@@ -209,7 +229,7 @@ class Registrator
 		return false;
 	}
 
-	private async TryLoadViewModel(registration: Registration, id: string): Promise<boolean>
+	private async TryLoadScript(registration: Registration, id: string): Promise<boolean>
 	{
 		let element  = document.createElement('script');
 		element.type = 'text/javascript';
@@ -251,6 +271,35 @@ class Registrator
 			return false;
 		}
 	}
+
+	private IsCanBeLoaded(url: string, isAsync: boolean) : boolean
+	{
+		let index = this._registrations.findIndex(x => x.ScriptUrl == url);
+
+		if(index >= 0)
+		{
+			this._registrations.splice(index, 1);
+		}
+		else
+		{
+			if(isAsync)
+			{
+				return !(this._asyncRegistrations.some(x => x.ScriptUrl == url)
+					|| this._loadedRegistrations.some(x => x.ScriptUrl == url));
+			}
+			else
+			{
+				index = this._asyncRegistrations.findIndex(x => x.ScriptUrl == url);
+
+				if(index >= 0)
+				{
+					this._asyncRegistrations.splice(index, 1);
+				}
+			}
+		}
+
+		return !this._loadedRegistrations.some(x => x.ScriptUrl == url);
+	}
 }
 
 interface IViewRegistrable
@@ -287,6 +336,7 @@ class Registration
 	public ScriptUrl: string;
 	public Type: RegistrationTypes;
 	public IsLoaded: boolean;
+	public IsSkiped: boolean;
 	public IsAsyncLoad ?: boolean;
 
 	public ViewContent: DocumentFragment;
