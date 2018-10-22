@@ -4,7 +4,18 @@ class Page21ViewModel
 	constructor(loader: Framework.IDependenceRegistrable)
 	{
 		super(loader);
+	}
 
-
+	Initialize()
+	{
+		this._loader
+			.RegisterScript('')
+			.ApplyRegistrations()
+			.RegisterHtml('')
+			.WithName('')
+			.WithScript('')
+			.AsType(Framework.RegistrationTypes.Page)
+			.ApplyRegistrations()
+			.Resolve();
 	}
 }

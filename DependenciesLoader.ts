@@ -25,11 +25,11 @@ namespace Framework
 			this._registrationBuffer  = [];
 		}
 
-		public RegisterScript(url: string): IRegistrationApplicable
+		public RegisterScript(url: string, callback?: OnLoadedCallback): IRegistrationApplicable
 		{
 			let registration = new Registration();
 
-			registration.ScriptUrl = url;
+			registration.ScriptUrl = new RegistrationLink(url, callback);
 			registration.Type      = RegistrationTypes.Script;
 
 			this._registrationBuffer.unshift(registration);
@@ -37,27 +37,27 @@ namespace Framework
 			return this;
 		}
 
-		public RegisterHtml(url: string): IViewModelRegistrable
+		public RegisterHtml(url: string, callback?: OnLoadedCallback): IViewModelRegistrable
 		{
 			let registration = new Registration();
 
-			registration.HtmlContentUrl = url;
+			registration.HtmlUrl = new HtmlRegistrationLink(url, callback);
 
 			this._registrationBuffer.unshift(registration);
 
 			return this;
 		}
 
-		public WithScript(url: string): IDependenceTypeRegistrable
+		public WithScript(url: string, callback?: OnLoadedCallback): IViewModelRegistrable
 		{
 			let last = this._registrationBuffer[0];
 
-			last.ScriptUrl = url;
+			last.ScriptUrl = new RegistrationLink(url, callback);
 
 			return this;
 		}
 
-		public WithName(name: string): IDependenceTypeRegistrable
+		public WithName(name: string): IViewModelRegistrable
 		{
 			let last = this._registrationBuffer[0];
 
@@ -68,6 +68,11 @@ namespace Framework
 
 		public AsType(type: RegistrationTypes): IRegistrationApplicable
 		{
+			if(type == RegistrationTypes.Script)
+			{
+				throw "Html page can't be type of script";
+			}
+
 			let last = this._registrationBuffer[0];
 
 			last.Type = type;
@@ -82,7 +87,7 @@ namespace Framework
 				{
 					x.IsAsyncLoad = isAsyncLoading;
 
-					if(!this.IsCanBeLoaded(x.ScriptUrl, x.IsAsyncLoad))
+					if(!this.IsCanBeLoaded(x.ScriptUrl.Url, x.IsAsyncLoad))
 					{
 						x.IsSkiped = true;
 						console.warn(
@@ -189,7 +194,7 @@ namespace Framework
 
 			let loadingResult: boolean;
 
-			if(registration.HtmlContentUrl)
+			if(registration.HtmlUrl)
 			{
 				loadingResult = await this.TryLoadHtml(registration);
 
@@ -218,7 +223,7 @@ namespace Framework
 
 			try
 			{
-				response = await fetch(registration.HtmlContentUrl);
+				response = await fetch(registration.HtmlUrl.Url);
 			}
 			catch(exc)
 			{
@@ -234,7 +239,9 @@ namespace Framework
 
 				tag.innerHTML = data;
 
-				registration.ViewContent = tag.content;
+				registration.HtmlUrl.ViewContent = tag.content;
+
+				registration.HtmlUrl.Callback(registration);
 
 				return true;
 			}
@@ -247,7 +254,7 @@ namespace Framework
 		{
 			let element  = document.createElement('script');
 			element.type = 'text/javascript';
-			element.src  = registration.ScriptUrl;
+			element.src  = registration.ScriptUrl.Url;
 
 			let prefix = "ViewModel_";
 
@@ -262,6 +269,7 @@ namespace Framework
 			{
 				element.onload = (args) =>
 				{
+					registration.ScriptUrl.Callback(registration);
 					resolve();
 				};
 
@@ -288,7 +296,7 @@ namespace Framework
 
 		private IsCanBeLoaded(url: string, isAsync: boolean): boolean
 		{
-			let index = this._registrations.findIndex(x => x.ScriptUrl == url);
+			let index = this._registrations.findIndex(x => x.ScriptUrl.Url == url);
 
 			if(index >= 0)
 			{
@@ -298,12 +306,12 @@ namespace Framework
 			{
 				if(isAsync)
 				{
-					return !(this._asyncRegistrations.some(x => x.ScriptUrl == url)
-						|| this._loadedRegistrations.some(x => x.ScriptUrl == url));
+					return !(this._asyncRegistrations.some(x => x.ScriptUrl.Url == url)
+						|| this._loadedRegistrations.some(x => x.ScriptUrl.Url == url));
 				}
 				else
 				{
-					index = this._asyncRegistrations.findIndex(x => x.ScriptUrl == url);
+					index = this._asyncRegistrations.findIndex(x => x.ScriptUrl.Url == url);
 
 					if(index >= 0)
 					{
@@ -312,15 +320,15 @@ namespace Framework
 				}
 			}
 
-			return !this._loadedRegistrations.some(x => x.ScriptUrl == url);
+			return !this._loadedRegistrations.some(x => x.ScriptUrl.Url == url);
 		}
 	}
 
 	export interface IDependenceRegistrable
 	{
-		RegisterHtml(url: string): IViewModelRegistrable;
+		RegisterHtml(url: string, callback?: OnLoadedCallback): IViewModelRegistrable;
 
-		RegisterScript(url: string): IRegistrationApplicable;
+		RegisterScript(url: string, callback?: OnLoadedCallback): IRegistrationApplicable;
 	}
 
 	export interface IRegistrationResolvable
@@ -332,14 +340,7 @@ namespace Framework
 	export interface IRegistrationApplicable
 		extends IDependenceRegistrable
 	{
-		ApplyRegistrations(isAsyncLoading: boolean): IRegistrationResolvable;
-	}
-
-	export interface IViewModelRegistrable
-	{
-		WithScript(url: string): IDependenceTypeRegistrable;
-
-		WithName(name: string): IDependenceTypeRegistrable;
+		ApplyRegistrations(isAsyncLoading?: boolean): IRegistrationResolvable;
 	}
 
 	export interface IDependenceTypeRegistrable
@@ -347,21 +348,79 @@ namespace Framework
 		AsType(type: RegistrationTypes): IRegistrationApplicable;
 	}
 
-	class Registration
+	export interface IViewModelRegistrable
+		extends IDependenceTypeRegistrable
 	{
-		public HtmlContentUrl: string;
-		public ScriptUrl: string;
+		WithScript(url: string, callback?: OnLoadedCallback): IViewModelRegistrable;
+
+		WithName(name: string): IViewModelRegistrable;
+	}
+
+	export interface IRegistration
+	{
+		readonly HtmlUrl: IHtmlRegistrationLink;
+		readonly ScriptUrl: IRegistrationLink;
+		readonly Name: string;
+		readonly Type: RegistrationTypes;
+		readonly IsLoaded: boolean;
+		readonly IsSkiped: boolean;
+		readonly IsAsyncLoad ?: boolean;
+	}
+
+	export interface IRegistrationLink
+	{
+		readonly Url : string;
+		readonly Callback : OnLoadedCallback;
+	}
+
+	export interface IHtmlRegistrationLink
+	{
+		readonly ViewContent: DocumentFragment;
+	}
+
+	class Registration
+		implements IRegistration
+	{
+		public HtmlUrl: HtmlRegistrationLink;
+		public ScriptUrl: RegistrationLink;
 		public Name: string;
 		public Type: RegistrationTypes;
 		public IsLoaded: boolean;
 		public IsSkiped: boolean;
 		public IsAsyncLoad ?: boolean;
 
-		public ViewContent: DocumentFragment;
-
 		constructor()
 		{
 		}
+	}
+
+	type OnLoadedCallback = (registration: IRegistration) => void;
+
+	class RegistrationLink
+		implements IRegistrationLink
+	{
+		public Url : string;
+		public Callback : OnLoadedCallback;
+
+		constructor(url: string, callback?: OnLoadedCallback)
+		{
+			this.Url = url;
+			this.Callback = callback;
+		}
+
+	}
+
+	class HtmlRegistrationLink
+		extends RegistrationLink
+		implements IHtmlRegistrationLink
+	{
+		public ViewContent: DocumentFragment;
+
+		constructor(url: string, callback?: OnLoadedCallback)
+		{
+			super(url, callback);
+		}
+
 	}
 
 	export enum RegistrationTypes
