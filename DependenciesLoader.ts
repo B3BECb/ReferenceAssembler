@@ -405,7 +405,7 @@ namespace Framework
 		constructor(url: string, callback?: OnLoadedCallback)
 		{
 			this.Url = url;
-			this.Callback = callback;
+			this.Callback = callback ? callback : () => {};
 		}
 
 	}

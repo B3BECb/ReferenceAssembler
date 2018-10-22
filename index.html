@@ -37,19 +37,6 @@
 
 	let a = new Framework.DependenciesLoader();
 
-	a.RegisterHtml("test/page1View.html")
-	 .WithScript("test/page1ViewModel.js")
-	 .AsType(Framework.RegistrationTypes.Page)
-	 .RegisterHtml("test/page2View.html")
-	 .WithScript("test/page2ViewModel.js")
-	 .AsType(Framework.RegistrationTypes.Page)
-	 .ApplyRegistrations(false);
-
-	a.RegisterHtml("test/page3View.html")
-	 .WithScript("test/page3ViewModel.js")
-	 .AsType(Framework.RegistrationTypes.Page)
-	 .ApplyRegistrations(true);
-
 	a.Resolve();
 
 </script>
