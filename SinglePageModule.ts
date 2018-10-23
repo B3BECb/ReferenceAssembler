@@ -5,6 +5,7 @@ class SinglePageModule
 		try
 		{
 			new EventTarget();
+			loader.RegisterScript('Emitter.js');
 		}
 		catch(exc)
 		{

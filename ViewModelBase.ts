@@ -1,7 +1,7 @@
 namespace Framework
 {
 	export class ViewModelBase
-		extends EventTarget
+		extends Emitter
 		implements IViewModel
 	{
 		protected _loader : IDependenceRegistrable;

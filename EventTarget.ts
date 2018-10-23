@@ -1,5 +1,5 @@
 // @ts-ignore
-class EventTarget
+class Emitter
 {
 	private readonly _listeners;
 
