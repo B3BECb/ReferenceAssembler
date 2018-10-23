@@ -331,24 +331,24 @@ namespace Framework
 		RegisterScript(url: string, callback?: OnLoadedCallback): IRegistrationApplicable;
 	}
 
-	export interface IRegistrationResolvable
+	interface IRegistrationResolvable
 		extends IDependenceRegistrable
 	{
 		Resolve(): Promise<boolean>;
 	}
 
-	export interface IRegistrationApplicable
+	interface IRegistrationApplicable
 		extends IDependenceRegistrable
 	{
 		ApplyRegistrations(isAsyncLoading?: boolean): IRegistrationResolvable;
 	}
 
-	export interface IDependenceTypeRegistrable
+	interface IDependenceTypeRegistrable
 	{
 		AsType(type: RegistrationTypes): IRegistrationApplicable;
 	}
 
-	export interface IViewModelRegistrable
+	interface IViewModelRegistrable
 		extends IDependenceTypeRegistrable
 	{
 		WithScript(url: string, callback?: OnLoadedCallback): IViewModelRegistrable;

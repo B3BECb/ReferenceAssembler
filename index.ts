@@ -1,10 +1,12 @@
+import ISinglePageElement = Framework.ISinglePageElement;
+
 class IndexViewModel
 {
 	private Loader: Framework.IDependenceRegistrable;
 
-	private BlueRectangleView : [DocumentFragment, BlueRectangleViewModel, boolean];
+	private BlueRectangleView: Framework.ISinglePageElement<BlueRectangleViewModel>;
 
-	private RedRectangleView : [DocumentFragment, Page21ViewModel, boolean];
+	private RedRectangleView: Framework.ISinglePageElement<RedRectangleView>;
 
 	constructor()
 	{
@@ -14,47 +16,56 @@ class IndexViewModel
 	async Initialize()
 	{
 		await this.Loader
-			.RegisterScript("ViewModelBase.js")
-			.RegisterHtml("Views/BlueRectangleView.html")
-			.WithScript("Views/BlueRectangleViewModel.js", registration =>
-			{
-				this.BlueRectangleView = [registration.HtmlUrl.ViewContent, new BlueRectangleViewModel(this.Loader), false];
-			})
-			.AsType(Framework.RegistrationTypes.Page)
-			.ApplyRegistrations()
-			.Resolve();
+				  .RegisterScript("SinglePageModule.js")
+				  .ApplyRegistrations()
+				  .Resolve();
+
+		await SinglePageModule.Initialize(this.Loader);
+
+		await this.Loader.RegisterHtml("Views/BlueRectangleView.html")
+				  .WithScript("Views/BlueRectangleViewModel.js", registration =>
+				  {
+					  let page               = new Framework.SinglePageElement<BlueRectangleViewModel>();
+					  page.ViewModel         = new BlueRectangleViewModel(this.Loader);
+					  page.Fragment          = registration.HtmlUrl.ViewContent;
+					  this.BlueRectangleView = page;
+				  })
+				  .AsType(Framework.RegistrationTypes.Page)
+				  .ApplyRegistrations()
+				  .Resolve();
 
 		await this.InsertPage(this.BlueRectangleView);
-		this.BlueRectangleView[1].addEventListener('change', async () => await this.SwitchPages());
+		this.BlueRectangleView.ViewModel.addEventListener('change', async() => await this.SwitchPages());
 
 		this.Loader
-			.RegisterHtml("test/page21View.html")
-			.WithScript("test/page21ViewModel.js", registration =>
+			.RegisterHtml("Views/RedRectangleView.html")
+			.WithScript("Views/RedRectangleViewModel.js", registration =>
 			{
-				this.RedRectangleView = [registration.HtmlUrl.ViewContent, new Page21ViewModel(this.Loader), false];
+				let page              = new Framework.SinglePageElement<RedRectangleView>();
+				page.ViewModel        = new RedRectangleView(this.Loader);
+				page.Fragment         = registration.HtmlUrl.ViewContent;
+				this.RedRectangleView = page;
 			})
 			.AsType(Framework.RegistrationTypes.Page)
 			.ApplyRegistrations()
 			.Resolve();
 	}
 
-	async InsertPage(page: [DocumentFragment, Framework.ViewModelBase, boolean])
+	async InsertPage<T extends Framework.IViewModel>(page: Framework.ISinglePageElement<T>)
 	{
 		let container = document.querySelector("body");
-		let fragment = page[0];
-		let vm = page[1];
 
 		while(container.firstChild)
 		{
 			container.removeChild(container.firstChild);
 		}
 
-		let template : HTMLTemplateElement = fragment.querySelector('#content');
+		let template: HTMLTemplateElement = page.Fragment.querySelector('#content');
 		container.appendChild(template.content.cloneNode(true));
 
-		await vm.Initialize();
+		await page.ViewModel.Initialize();
 
-		page[2] = true;
+		page.IsActive = true;
 	}
 
 	async SwitchPages()

@@ -1,4 +1,4 @@
-class Page21ViewModel
+class RedRectangleView
 	extends Framework.ViewModelBase
 {
 	constructor(loader: Framework.IDependenceRegistrable)
