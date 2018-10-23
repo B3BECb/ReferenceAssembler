@@ -3,10 +3,13 @@ class BlueRectangleViewModel
 {
 	public async Initialize()
 	{
-		document.querySelector("#rect")
-			.addEventListener("click", () =>
+		let rect = document.querySelector("#rect");
+		if(rect)
+		{
+			rect.addEventListener("click", () =>
 			{
 				this.dispatchEvent(new CustomEvent('change'));
 			});
+		}
 	}
 }

@@ -8,10 +8,14 @@ class RedRectangleViewModel
 
 	public async Initialize()
 	{
-		document.querySelector("#rect")
-				.addEventListener("click", () =>
-				{
-					this.dispatchEvent(new CustomEvent('change'));
-				});
+		let rect = document.querySelector("#rect");
+
+		if(rect)
+		{
+			rect.addEventListener("click", () =>
+			{
+				this.dispatchEvent(new CustomEvent('change'));
+			});
+		}
 	}
 }
