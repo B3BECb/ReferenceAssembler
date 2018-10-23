@@ -6,16 +6,8 @@ class Page21ViewModel
 		super(loader);
 	}
 
-	Initialize()
+	public async Initialize()
 	{
-		this._loader
-			.RegisterScript('')
-			.ApplyRegistrations()
-			.RegisterHtml('')
-			.WithName('')
-			.WithScript('')
-			.AsType(Framework.RegistrationTypes.Page)
-			.ApplyRegistrations()
-			.Resolve();
+
 	}
 }

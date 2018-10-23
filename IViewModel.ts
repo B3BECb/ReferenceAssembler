@@ -2,6 +2,6 @@ namespace Framework
 {
 	export interface IViewModel
 	{
-		Initialize();
+		Initialize() : Promise<void>;
 	}
 }

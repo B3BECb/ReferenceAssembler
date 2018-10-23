@@ -4,13 +4,15 @@
 	<meta charset = "UTF-8">
 	<title>Title</title>
 	<script src = "DependenciesLoader.js"></script>
+	<script src = "index.js"></script>
 </head>
 <body>
 
 </body>
 <script>
-
-	async function aaa()
+	let indexViewModel = new IndexViewModel();
+	indexViewModel.Initialize();
+	/*async function aaa()
 	{
 		let response = await fetch('test/page1View.html');
 
@@ -33,11 +35,7 @@
 		 .ApplyRegistrations(true);
 
 		a.Resolve();
-	}
-
-	let a = new Framework.DependenciesLoader();
-
-	a.Resolve();
+	}*/
 
 </script>
 </html>
